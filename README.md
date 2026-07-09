@@ -15,4 +15,6 @@ Rode `outputs/iptv-clientes/supabase-schema.sql` no SQL Editor do Supabase e dep
 - Project URL
 - anon public key
 
-O app tambem continua funcionando em modo local se o Supabase ainda nao estiver configurado.
+Para deixar o app online ja conectado ao Supabase, preencha `outputs/iptv-clientes/supabase-config.js` com esses dois valores e envie para o GitHub.
+
+Nunca publique a `service_role key`; use apenas a `anon public key`.

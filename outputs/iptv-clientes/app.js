@@ -144,14 +144,34 @@ function saveState() {
 
 function getSupabaseConfig() {
   const raw = localStorage.getItem(SUPABASE_CONFIG_KEY);
-  if (!raw) return null;
-  try {
-    const config = JSON.parse(raw);
-    if (!config.url || !config.anonKey) return null;
-    return config;
-  } catch {
-    return null;
+  if (raw) {
+    try {
+      const config = JSON.parse(raw);
+      if (isValidSupabaseConfig(config)) return normalizeSupabaseConfig(config);
+    } catch {
+      return null;
+    }
   }
+  const bundled = window.IPTV_SUPABASE_CONFIG;
+  return isValidSupabaseConfig(bundled) ? normalizeSupabaseConfig(bundled) : null;
+}
+
+function isValidSupabaseConfig(config) {
+  return Boolean(
+    config &&
+      typeof config.url === "string" &&
+      typeof config.anonKey === "string" &&
+      config.url.trim().startsWith("https://") &&
+      config.url.includes(".supabase.co") &&
+      config.anonKey.trim().length > 20,
+  );
+}
+
+function normalizeSupabaseConfig(config) {
+  return {
+    url: config.url.trim().replace(/\/+$/, ""),
+    anonKey: config.anonKey.trim(),
+  };
 }
 
 function setSupabaseConfig(config) {
