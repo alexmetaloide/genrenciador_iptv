@@ -15,13 +15,13 @@ Sem Supabase configurado, o app funciona em modo local usando o armazenamento do
 3. Rode o arquivo `supabase-schema.sql`.
 4. No Supabase, copie:
    - Project URL
-   - anon public key
+   - anon public key ou publishable key
 5. Cole esses dados no arquivo `supabase-config.js`:
 
 ```js
 window.IPTV_SUPABASE_CONFIG = {
   url: "https://SEU-PROJETO.supabase.co",
-  anonKey: "SUA-ANON-PUBLIC-KEY",
+  anonKey: "SUA-ANON-PUBLIC-KEY-OU-PUBLISHABLE-KEY",
 };
 ```
 
@@ -73,6 +73,6 @@ O WhatsApp esta em modo manual. O app gera a mensagem e abre a conversa, mas nao
 
 ## Observacao de seguranca
 
-A anon public key do Supabase pode ficar no frontend quando as politicas RLS estao ativadas. O arquivo `supabase-schema.sql` ja cria politicas para cada usuario acessar apenas seus proprios dados.
+A anon public key ou publishable key do Supabase pode ficar no frontend quando as politicas RLS estao ativadas. O arquivo `supabase-schema.sql` ja cria politicas para cada usuario acessar apenas seus proprios dados.
 
 Nunca coloque a `service_role key` no app, no GitHub ou no navegador.

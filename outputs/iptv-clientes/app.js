@@ -720,8 +720,8 @@ function renderCloudConfigPanel() {
           <input name="url" value="${esc(config.url)}" placeholder="https://xxxx.supabase.co" required />
         </label>
         <label class="field">
-          <span>Anon public key</span>
-          <input name="anonKey" value="${esc(config.anonKey)}" placeholder="eyJ..." required />
+          <span>Anon public key ou publishable key</span>
+          <input name="anonKey" value="${esc(config.anonKey)}" placeholder="eyJ... ou sb_publishable_..." required />
         </label>
         <button class="btn primary" type="submit">Salvar e usar Supabase</button>
       </form>

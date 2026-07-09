@@ -13,7 +13,7 @@ O workflow `.github/workflows/deploy-pages.yml` publica automaticamente a pasta 
 Rode `outputs/iptv-clientes/supabase-schema.sql` no SQL Editor do Supabase e depois informe no app:
 
 - Project URL
-- anon public key
+- anon public key ou publishable key
 
 Para deixar o app online ja conectado ao Supabase, preencha `outputs/iptv-clientes/supabase-config.js` com esses dois valores e envie para o GitHub.
 
