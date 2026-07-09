@@ -7,9 +7,9 @@
   --text: #17202a;
   --muted: #667085;
   --strong: #0f172a;
-  --primary: #157f5c;
-  --primary-dark: #0f684b;
-  --primary-soft: #dff4ec;
+  --primary: #1d4ed8;
+  --primary-dark: #1e40af;
+  --primary-soft: #dbeafe;
   --blue: #2563eb;
   --blue-soft: #e6efff;
   --amber: #b86b00;
@@ -24,6 +24,28 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --surface: #111827;
+  --surface-2: #1f2937;
+  --line: #334155;
+  --text: #dbe4ef;
+  --muted: #9aa7b7;
+  --strong: #f8fafc;
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --primary-soft: #172554;
+  --blue: #60a5fa;
+  --blue-soft: #142b4f;
+  --amber: #f5b84b;
+  --amber-soft: #3b2a10;
+  --red: #f87171;
+  --red-soft: #3f1d24;
+  --gray-soft: #263244;
+  --shadow: 0 20px 55px rgba(0, 0, 0, 0.34);
 }
 
 * {
@@ -64,8 +86,15 @@ a {
   place-items: center;
   padding: 24px;
   background:
-    linear-gradient(120deg, rgba(21, 127, 92, 0.1), transparent 42%),
+    linear-gradient(120deg, rgba(29, 78, 216, 0.09), transparent 42%),
     linear-gradient(320deg, rgba(37, 99, 235, 0.1), transparent 40%),
+    var(--bg);
+}
+
+[data-theme="dark"] .auth-page {
+  background:
+    linear-gradient(120deg, rgba(59, 130, 246, 0.13), transparent 42%),
+    linear-gradient(320deg, rgba(96, 165, 250, 0.12), transparent 40%),
     var(--bg);
 }
 
@@ -120,6 +149,10 @@ a {
   background: #fbfcfd;
 }
 
+[data-theme="dark"] .sidebar {
+  background: #0b1220;
+}
+
 .brand {
   display: grid;
   grid-template-columns: 42px 1fr;
@@ -172,6 +205,10 @@ a {
   color: #344054;
   text-align: left;
   cursor: pointer;
+}
+
+[data-theme="dark"] .nav-button {
+  color: #cbd5e1;
 }
 
 .nav-button:hover,
@@ -371,6 +408,11 @@ a {
   font-weight: 700;
 }
 
+[data-theme="dark"] .field label,
+[data-theme="dark"] .check-line span {
+  color: #cbd5e1;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -383,6 +425,12 @@ a {
   padding: 9px 10px;
 }
 
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .field textarea {
+  background: #0b1220;
+}
+
 .field textarea {
   min-height: 92px;
   resize: vertical;
@@ -392,7 +440,7 @@ a {
 .field select:focus,
 .field textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(21, 127, 92, 0.14);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
   outline: none;
 }
 
@@ -422,6 +470,15 @@ a {
   text-decoration: none;
   font-weight: 700;
   white-space: nowrap;
+}
+
+[data-theme="dark"] .btn {
+  color: #e2e8f0;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .btn:hover,
@@ -480,6 +537,10 @@ a {
   font-weight: 700;
 }
 
+[data-theme="dark"] .segment {
+  color: #cbd5e1;
+}
+
 .segment.active {
   background: var(--surface);
   color: var(--strong);
@@ -514,6 +575,11 @@ th {
   text-transform: uppercase;
 }
 
+[data-theme="dark"] th {
+  background: #0b1220;
+  color: #b6c2d1;
+}
+
 tbody tr:last-child td {
   border-bottom: 0;
 }
@@ -542,8 +608,12 @@ tbody tr:last-child td {
 }
 
 .badge.active {
-  color: #0f684b;
+  color: #1e40af;
   background: var(--primary-soft);
+}
+
+[data-theme="dark"] .badge.active {
+  color: #8ff0c5;
 }
 
 .badge.expiring {
@@ -562,13 +632,31 @@ tbody tr:last-child td {
   background: var(--blue-soft);
 }
 
+[data-theme="dark"] .badge.expiring,
+[data-theme="dark"] .badge.pending {
+  color: #ffd38a;
+}
+
+[data-theme="dark"] .badge.overdue,
+[data-theme="dark"] .badge.cancelled {
+  color: #fecaca;
+}
+
+[data-theme="dark"] .badge.trial {
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .badge.neutral {
+  color: #cbd5e1;
+}
+
 .badge.pending {
   color: #8a5100;
   background: var(--amber-soft);
 }
 
 .badge.received {
-  color: #0f684b;
+  color: #1e40af;
   background: var(--primary-soft);
 }
 
@@ -627,6 +715,11 @@ tbody tr:last-child td {
   color: var(--muted);
   text-align: center;
   background: #fbfcfd;
+}
+
+[data-theme="dark"] .empty {
+  background: #0b1220;
+  border-color: #334155;
 }
 
 .progress-list {
@@ -730,6 +823,11 @@ tbody tr:last-child td {
   line-height: 1.45;
 }
 
+[data-theme="dark"] .preview-box {
+  background: #0b1220;
+  color: #dbe4ef;
+}
+
 .toast {
   position: fixed;
   right: 20px;
@@ -828,6 +926,10 @@ tbody tr:last-child td {
     grid-template-columns: repeat(5, 1fr);
     border-top: 1px solid var(--line);
     background: #fff;
+  }
+
+  [data-theme="dark"] .bottom-nav {
+    background: #0b1220;
   }
 
   .bottom-nav .nav-button {

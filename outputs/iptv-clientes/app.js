@@ -4,6 +4,7 @@ const STORAGE_KEY = "iptv_clientes_legal_v1";
 const SESSION_KEY = "iptv_clientes_legal_session";
 const SUPABASE_CONFIG_KEY = "iptv_clientes_supabase_config";
 const LOCAL_MODE_KEY = "iptv_clientes_force_local";
+const THEME_KEY = "iptv_clientes_theme";
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
 const navItems = [
@@ -47,6 +48,7 @@ let cloudSaveTimer = null;
 let cloudSaveInFlight = false;
 let suppressCloudSave = false;
 let cloudStatus = "";
+let deferredInstallPrompt = null;
 
 const ui = {
   view: "dashboard",
@@ -73,9 +75,27 @@ function bindEvents() {
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("change", handleChange);
   document.addEventListener("input", handleInput);
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    render();
+  });
+  if (window.matchMedia) {
+    const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = () => {
+      if (getThemePreference() === "system") applyTheme("system");
+    };
+    if (colorScheme.addEventListener) {
+      colorScheme.addEventListener("change", syncSystemTheme);
+    } else if (colorScheme.addListener) {
+      colorScheme.addListener(syncSystemTheme);
+    }
+  }
 }
 
 async function boot() {
+  applyTheme(getThemePreference());
+  registerServiceWorker();
   state = loadState();
   logged = sessionStorage.getItem(SESSION_KEY) === "1";
   await initSupabaseClient();
@@ -1214,7 +1234,11 @@ function renderSettings() {
             <button class="btn primary" type="submit">Salvar ajustes</button>
           </form>
         </div>
-        ${isCloudActive() ? renderCloudAccountPanel() : renderLocalSecurityPanel()}
+        <div class="grid">
+          ${renderAppearancePanel()}
+          ${renderInstallPanel()}
+          ${isCloudActive() ? renderCloudAccountPanel() : renderLocalSecurityPanel()}
+        </div>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Supabase</h2></div>
@@ -1228,6 +1252,42 @@ function renderSettings() {
         ${renderAuditList(state.auditLogs.slice(-40).reverse())}
       </div>
     </section>
+  `;
+}
+
+function renderAppearancePanel() {
+  const current = getThemePreference();
+  return `
+    <div class="panel">
+      <div class="panel-header"><h2>Aparencia</h2></div>
+      <div class="grid">
+        <p class="muted">Escolha como o app aparece neste aparelho.</p>
+        <div class="segmented" role="group" aria-label="Tema do app">
+          ${segment("system", "Sistema", current, "set-theme")}
+          ${segment("light", "Claro", current, "set-theme")}
+          ${segment("dark", "Escuro", current, "set-theme")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderInstallPanel() {
+  const installed = isStandaloneApp();
+  return `
+    <div class="panel">
+      <div class="panel-header"><h2>Instalar app</h2></div>
+      <div class="grid">
+        <p class="muted">${
+          installed
+            ? "Este app ja esta aberto como aplicativo instalado."
+            : "Instale no celular ou computador para abrir em tela cheia e acessar mais rapido."
+        }</p>
+        <button class="btn primary" data-action="install-app" type="button" ${installed ? "disabled" : ""}>
+          ${installed ? "App instalado" : "Instalar neste aparelho"}
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -1921,6 +1981,15 @@ async function handleClick(event) {
     ui.reportStart = startOfMonthISO();
     ui.reportEnd = endOfMonthISO();
     render();
+    return;
+  }
+  if (action === "set-theme") {
+    setThemePreference(button.dataset.mode || "system");
+    render();
+    return;
+  }
+  if (action === "install-app") {
+    await installApp();
     return;
   }
   if (action === "export-clients") {
@@ -2844,6 +2913,54 @@ function esc(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function getThemePreference() {
+  const saved = localStorage.getItem(THEME_KEY);
+  return ["light", "dark", "system"].includes(saved) ? saved : "system";
+}
+
+function getResolvedTheme(preference) {
+  if (preference === "system") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return preference === "dark" ? "dark" : "light";
+}
+
+function setThemePreference(preference) {
+  const next = ["light", "dark", "system"].includes(preference) ? preference : "system";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}
+
+function applyTheme(preference) {
+  const theme = getResolvedTheme(preference);
+  document.documentElement.dataset.theme = theme;
+  document.querySelector("meta[name='theme-color']")?.setAttribute("content", theme === "dark" ? "#0f172a" : "#1D4ED8");
+}
+
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    showToast("Use o menu do navegador e escolha instalar/adicionar a tela inicial.");
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  render();
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {
+      // O app continua funcionando mesmo quando o navegador bloqueia o cache offline.
+    });
+  });
 }
 
 function showToast(message) {
