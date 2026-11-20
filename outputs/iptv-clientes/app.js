@@ -45,7 +45,8 @@ let bootReady = false;
 let supabaseClient = null;
 let supabaseSession = null;
 let cloudSaveTimer = null;
-let cloudSaveInFlight = false;
+let cloudWriteQueue = Promise.resolve();
+const deletingClients = new Set();
 let suppressCloudSave = false;
 let cloudStatus = "";
 let deferredInstallPrompt = null;
@@ -157,9 +158,9 @@ function normalizeState(value) {
   };
 }
 
-function saveState() {
+function saveState({ sync = true } = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  if (isCloudActive() && !suppressCloudSave) queueCloudSave();
+  if (sync && isCloudActive() && !suppressCloudSave) queueCloudSave();
 }
 
 function getSupabaseConfig() {
@@ -326,45 +327,52 @@ function queueCloudSave() {
   }, 450);
 }
 
-async function syncAllToSupabase() {
-  if (!isCloudActive() || cloudSaveInFlight) return;
-  cloudSaveInFlight = true;
-  const userId = supabaseSession.user.id;
-  try {
-    await upsertOrThrow("app_settings", [settingsToRow(userId)], "user_id");
-    await upsertOrThrow("plans", state.plans.map((item) => planToRow(item, userId)));
-    await deleteMissingRows("plans", state.plans.map((item) => item.id));
-    await upsertOrThrow("clients", state.clients.map((item) => clientToRow(item, userId)));
-    await deleteMissingRows("clients", state.clients.map((item) => item.id));
-    await upsertOrThrow("payments", state.payments.map((item) => paymentToRow(item, userId)));
-    await deleteMissingRows("payments", state.payments.map((item) => item.id));
-    await upsertOrThrow(
-      "message_templates",
-      Object.entries(state.settings.templates || {}).map(([type, body]) => ({
-        user_id: userId,
-        type,
-        body,
-        updated_at: new Date().toISOString(),
-      })),
-      "user_id,type",
-    );
-    await upsertOrThrow("audit_logs", state.auditLogs.map((item) => auditToRow(item, userId)));
-    await deleteMissingRows("audit_logs", state.auditLogs.map((item) => item.id));
-    cloudStatus = `Sincronizado em ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`;
-  } finally {
-    cloudSaveInFlight = false;
-  }
+function queueCloudWrite(write) {
+  const operation = cloudWriteQueue.then(write);
+  cloudWriteQueue = operation.catch(() => {});
+  return operation;
 }
 
-async function upsertOrThrow(table, rows, onConflict = "id") {
+async function syncAllToSupabase() {
+  if (!isCloudActive()) return;
+  const connection = supabaseClient;
+  const userId = supabaseSession.user.id;
+  return queueCloudWrite(async () => {
+    if (!isCloudActive() || supabaseClient !== connection || supabaseSession.user.id !== userId) return;
+    const settings = settingsToRow(userId);
+    const plans = state.plans.map((item) => planToRow(item, userId));
+    const clients = state.clients.map((item) => clientToRow(item, userId));
+    const payments = state.payments.map((item) => paymentToRow(item, userId));
+    const templates = Object.entries(state.settings.templates || {}).map(([type, body]) => ({
+      user_id: userId,
+      type,
+      body,
+      updated_at: new Date().toISOString(),
+    }));
+    const auditLogs = state.auditLogs.map((item) => auditToRow(item, userId));
+
+    await upsertOrThrow(connection, "app_settings", [settings], "user_id");
+    await upsertOrThrow(connection, "plans", plans);
+    await deleteMissingRows(connection, userId, "plans", plans.map((row) => row.id));
+    await upsertOrThrow(connection, "clients", clients);
+    await deleteMissingRows(connection, userId, "clients", clients.map((row) => row.id));
+    await upsertOrThrow(connection, "payments", payments);
+    await deleteMissingRows(connection, userId, "payments", payments.map((row) => row.id));
+    await upsertOrThrow(connection, "message_templates", templates, "user_id,type");
+    await upsertOrThrow(connection, "audit_logs", auditLogs);
+    await deleteMissingRows(connection, userId, "audit_logs", auditLogs.map((row) => row.id));
+    cloudStatus = `Sincronizado em ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`;
+  });
+}
+
+async function upsertOrThrow(connection, table, rows, onConflict = "id") {
   if (!rows.length) return;
-  const { error } = await supabaseClient.from(table).upsert(rows, { onConflict });
+  const { error } = await connection.from(table).upsert(rows, { onConflict });
   if (error) throw error;
 }
 
-async function deleteMissingRows(table, ids) {
-  const userId = supabaseSession.user.id;
-  let query = supabaseClient.from(table).delete().eq("user_id", userId);
+async function deleteMissingRows(connection, userId, table, ids) {
+  let query = connection.from(table).delete().eq("user_id", userId);
   if (ids.length) query = query.not("id", "in", `(${ids.join(",")})`);
   const { error } = await query;
   if (error) throw error;
@@ -1583,6 +1591,7 @@ function renderClientDetail(id) {
               <button class="btn" data-action="open-payment" data-client-id="${client.id}" type="button">Registrar pagamento</button>
               <button class="btn" data-action="open-client" data-id="${client.id}" type="button">Editar cliente</button>
               <button class="btn ${client.status === "cancelled" ? "primary" : "danger"}" data-action="toggle-client-cancelled" data-id="${client.id}" type="button">${client.status === "cancelled" ? "Reativar" : "Cancelar"}</button>
+              <button class="btn danger" data-action="delete-client" data-id="${esc(client.id)}" type="button">Excluir cliente</button>
             </div>
           </div>
           <div class="panel">
@@ -1686,6 +1695,7 @@ function renderClientsTable(clients) {
                       <button class="btn small primary" data-action="renew-client" data-id="${client.id}" type="button">Renovar</button>
                       <button class="btn small" data-action="open-client-message" data-id="${client.id}" type="button">WhatsApp</button>
                       <button class="btn small" data-action="open-client" data-id="${client.id}" type="button">Editar</button>
+                      <button class="btn small danger" data-action="delete-client" data-id="${esc(client.id)}" type="button" aria-label="Excluir ${esc(client.name)}">Excluir</button>
                     </div>
                   </td>
                 </tr>
@@ -1696,7 +1706,7 @@ function renderClientsTable(clients) {
       </table>
     </div>
     <div class="mobile-list">
-      ${renderClientList(clients)}
+      ${renderClientList(clients, { showDelete: true })}
     </div>
   `;
 }
@@ -1732,6 +1742,7 @@ function renderClientList(clients, opts = {}) {
                 <button class="btn small primary" data-action="renew-client" data-id="${client.id}" type="button">Renovar</button>
                 <button class="btn small" data-action="open-client-message" data-id="${client.id}" type="button">WhatsApp</button>
                 ${opts.compact ? "" : `<button class="btn small" data-action="open-client" data-id="${client.id}" type="button">Editar</button>`}
+                ${opts.showDelete ? `<button class="btn small danger" data-action="delete-client" data-id="${esc(client.id)}" type="button" aria-label="Excluir ${esc(client.name)}">Excluir</button>` : ""}
               </div>
             </article>
           `;
@@ -1919,6 +1930,10 @@ async function handleClick(event) {
   }
   if (action === "renew-client") {
     renewClient(button.dataset.id);
+    return;
+  }
+  if (action === "delete-client") {
+    await deleteClient(button.dataset.id);
     return;
   }
   if (action === "toggle-client-cancelled") {
@@ -2431,6 +2446,59 @@ function deletePayment(id) {
   saveState();
   showToast("Pagamento excluído.");
   render();
+}
+
+async function deleteClient(id) {
+  const client = state.clients.find((item) => item.id === id);
+  if (!client || deletingClients.has(id)) return;
+  if (!confirm(`Excluir definitivamente “${client.name}”? Os pagamentos vinculados também serão excluídos.`)) return;
+
+  if (!isCloudActive()) {
+    removeClientFromState(id);
+    showToast("Cliente excluído.");
+    return;
+  }
+
+  const connection = supabaseClient;
+  const userId = supabaseSession.user.id;
+  const clientState = state;
+  const sameAccount = () => supabaseClient === connection && supabaseSession?.user.id === userId;
+  deletingClients.add(id);
+
+  let deleted = false;
+  try {
+    await queueCloudWrite(async () => {
+      if (!sameAccount() || state !== clientState) return;
+      const { error } = await connection.from("clients").delete().eq("user_id", userId).eq("id", id);
+      if (error) throw error;
+
+      deleted = true;
+      if (!sameAccount() || state !== clientState) return;
+      const audit = removeClientFromState(id);
+      await upsertOrThrow(connection, "audit_logs", [auditToRow(audit, userId)]);
+    });
+    if (deleted && sameAccount()) showToast("Cliente excluído.");
+  } catch {
+    if (sameAccount()) {
+      showToast(deleted
+        ? "Cliente excluído. Houve uma falha ao salvar a alteração local ou o histórico."
+        : "Não foi possível excluir o cliente. Tente novamente.");
+    }
+  } finally {
+    deletingClients.delete(id);
+  }
+}
+
+function removeClientFromState(id) {
+  state.clients = state.clients.filter((item) => item.id !== id);
+  state.payments = state.payments.filter((item) => item.clientId !== id);
+  addAudit("cliente", id, "Cliente excluído");
+  saveState({ sync: false });
+
+  if (ui.messageClientId === id) ui.messageClientId = "";
+  if (ui.modal?.id === id || ui.modal?.clientId === id) closeModal(false);
+  render();
+  return state.auditLogs[state.auditLogs.length - 1];
 }
 
 function toggleClientCancelled(id) {
